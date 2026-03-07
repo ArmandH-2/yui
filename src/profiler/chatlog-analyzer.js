@@ -277,13 +277,16 @@ class ChatlogAnalyzer {
     /**
      * Update the cumulative persona summary based on all analyses.
      */
-    async _updateCumulativePersona(playerName, latestAnalysis) {
-        const existing = this.store.getAnalysis(playerName);
+    async _updateCumulativePersona(playerName, latestAnalysis = null) {
         const allAnalyses = this.store.getChatlogAnalyses(playerName);
 
-        if (allAnalyses.length < 2) {
-            // First or second analysis — just use the latest
-            this.store.updateAnalysis(playerName, latestAnalysis);
+        if (allAnalyses.length === 0) {
+            this.store.updateAnalysis(playerName, null);
+            return;
+        }
+
+        if (allAnalyses.length === 1) {
+            this.store.updateAnalysis(playerName, allAnalyses[0].analysis);
             return;
         }
 
@@ -295,14 +298,14 @@ class ChatlogAnalyzer {
                 .filter(Boolean)
                 .join('\n- ');
 
-            const cumulativePrompt = `You have performed multiple behavioral analyses of Minecraft player "${playerName}" over time. Here are the findings:\n\n- ${summaries}\n\nProvide a single cumulative assessment. Has their behavior changed over time? What is the overall pattern?`;
+            const cumulativePrompt = `You have performed multiple behavioral analyses of Minecraft player "${playerName}" over time. Here are the findings:\n\n- ${summaries}\n\nProvide a single cumulative assessment. Has their behavior changed over time? What is the overall pattern? Respond ONLY in valid JSON matching the format.`;
 
-            const response = await quickPrompt(cumulativePrompt, PROFILING_PROMPT);
+            const response = await quickPrompt(cumulativePrompt, buildProfilingPrompt(playerName));
             const cumulative = JSON.parse(response);
             this.store.updateAnalysis(playerName, cumulative);
         } catch (err) {
             console.error(`[ChatlogAnalyzer] Cumulative update failed:`, err.message);
-            this.store.updateAnalysis(playerName, latestAnalysis);
+            if (latestAnalysis) this.store.updateAnalysis(playerName, latestAnalysis);
         }
     }
 }

@@ -98,25 +98,7 @@ When you receive a message, follow this thinking process:
 
 ## Response Format
 
-Always respond with valid JSON in this structure:
-
-```json
-{
-  "thought": "Brief internal reasoning about what I know, what I don't, and what I should do",
-  "intent": "CHAT | COMMAND | MEMORY_SEARCH | SKILL_EXEC | SUMMARIZE | REMIND",
-  "tool_calls": [
-    {
-      "tool": "tool_name",
-      "params": { "key": "value" }
-    }
-  ],
-  "response": "Your message back to the user"
-}
-```
-
-If no tool is needed, set `tool_calls` to an empty array.
-
-You can include MULTIPLE tool calls to chain actions (e.g., execute a command AND save the result to memory).
+Respond naturally in plain text directly to the user. Do not wrap your response in a JSON object. You have access to tool calling to perform actions (like commands or memory actions), but your final conversational reply should just be normal text.
 
 ## Intent Routing
 

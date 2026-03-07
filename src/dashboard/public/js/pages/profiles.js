@@ -38,7 +38,8 @@ const ProfilesPage = {
                 <div class="flex-between mb-16">
                     <h2 id="dossier-title">Dossier</h2>
                     <div class="flex-center gap-8">
-                        <button class="btn btn-accent" id="dossier-force-check">🔄 Force Check</button>
+                        <button class="btn btn-primary" id="dossier-quick-check" title="Only checks online state">⚡ Quick Check</button>
+                        <button class="btn btn-accent" id="dossier-full-check" title="Checks online state, playtime, alts, punish history, and analyses chatlogs">🔍 Full Intel</button>
                         <button class="btn btn-ghost" id="dossier-back">← Back</button>
                     </div>
                 </div>
@@ -172,29 +173,77 @@ const ProfilesPage = {
     },
 
     async forceCheck(name) {
-        App.toast(`Running full intelligence check on ${name}...`, 'info');
+        const btn = document.getElementById('dossier-full-check');
+        let origHTML = '🔍 Full Intel';
+        if (btn) {
+            origHTML = btn.innerHTML;
+            btn.innerHTML = '⏳ Working...';
+            btn.disabled = true;
+        }
+
+        App.toast(`Starting full intelligence gathering on ${name}...`, 'info');
         try {
             await API.profileCheck(name);
-            App.toast(`${name} checked!`, 'success');
+            App.toast(`Full intel gathered for ${name}!`, 'success');
             if (ProfilesPage.currentProfile === name) {
-                await ProfilesPage.viewDossier(name);
+                await ProfilesPage.viewDossier(name, true);
             }
         } catch (err) {
             App.toast('Failed: ' + err.message, 'error');
+        } finally {
+            if (btn) {
+                btn.innerHTML = origHTML;
+                btn.disabled = false;
+            }
         }
     },
 
-    async viewDossier(name) {
+    async quickCheck(name) {
+        const btn = document.getElementById('dossier-quick-check');
+        let origHTML = '⚡ Quick Check';
+        if (btn) {
+            origHTML = btn.innerHTML;
+            btn.innerHTML = '⏳ Working...';
+            btn.disabled = true;
+        }
+
+        App.toast(`Quick-checking ${name}...`, 'info');
+        try {
+            await window.fetch(`/api/profiles/${encodeURIComponent(name)}/quick-check`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            }).then(r => r.json());
+            App.toast(`${name} checked!`, 'success');
+            if (ProfilesPage.currentProfile === name) {
+                await ProfilesPage.viewDossier(name, true);
+            }
+        } catch (err) {
+            App.toast('Failed: ' + err.message, 'error');
+        } finally {
+            if (btn) {
+                btn.innerHTML = origHTML;
+                btn.disabled = false;
+            }
+        }
+    },
+
+    async viewDossier(name, isRefresh = false) {
+        // Save scroll position if refreshing
+        const scrollPos = isRefresh ? window.scrollY : 0;
+
         ProfilesPage.currentProfile = name;
         document.getElementById('profiles-list-area').style.display = 'none';
         document.getElementById('dossier-area').style.display = 'block';
         document.getElementById('dossier-title').textContent = `🗂️ ${name} — Dossier`;
 
-        const forceBtn = document.getElementById('dossier-force-check');
-        forceBtn.onclick = () => ProfilesPage.forceCheck(name);
+        const fullBtn = document.getElementById('dossier-full-check');
+        fullBtn.onclick = () => ProfilesPage.forceCheck(name);
+
+        const quickBtn = document.getElementById('dossier-quick-check');
+        quickBtn.onclick = () => ProfilesPage.quickCheck(name);
 
         const content = document.getElementById('dossier-content');
-        content.innerHTML = '<p class="text-muted">Loading dossier...</p>';
+        if (!isRefresh) content.innerHTML = '<p class="text-muted">Loading dossier...</p>';
 
         try {
             const d = await API.profileDossier(name);
@@ -216,46 +265,65 @@ const ProfilesPage = {
 
             let html = '<div class="dossier-grid">';
 
-            // ── Profile + Surveillance Status ──
+            // ── Intelligence Profile (Merged Profile + Activity) ──
             html += `
-                <div class="card">
-                    <div class="card-title mb-16">📋 Profile</div>
-                    <p><strong>Name:</strong> ${App.escapeHtml(p.name)}</p>
-                    <p><strong>Type:</strong> <span class="badge ${({ 'applicant': 'badge-accent', 'suspect': 'badge-warning', 'staff-suspect': 'badge-error' })[p.type] || 'badge-info'}">${p.type || 'unknown'}</span></p>
-                    <p><strong>Since:</strong> ${p.trackingSince?.slice(0, 10) || 'unknown'}</p>
-                    <p><strong>Checks:</strong> ${p.checkCount || 0}</p>
-                    <p><strong>Last checked:</strong> ${p.lastChecked ? App.timeAgo(p.lastChecked) : 'never'}</p>
-                    <p><strong>State:</strong> ${{ idle: '💤 Idle', active: '🟢 Active', cooldown: '🔶 Cooldown' }[p.surveillanceState] || '⚪ Unknown'}</p>
-                    ${p.latestPlaytime != null ? `<p><strong>Playtime:</strong> ${p.latestPlaytime}h ${p.playtimeBaseline != null ? `(+${Math.max(0, p.latestPlaytime - p.playtimeBaseline)}h since watch)` : ''}</p>` : ''}
-                    ${p.lastChatlogAt ? `<p><strong>Last chatlog:</strong> ${App.timeAgo(p.lastChatlogAt)}</p>` : ''}
+                <div class="card full-width">
+                    <div class="card-title mb-16">📋 Intelligence Profile</div>
+                    <div style="display:flex; flex-wrap:wrap; gap:24px; padding: 8px 16px; background: rgba(0,0,0,0.15); border-radius: 8px;">
+                        
+                        <div style="flex: 1; min-width: 200px;">
+                            <div style="color: var(--text-dim); font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 12px;">Surveillance Target</div>
+                            <div style="display:flex; align-items:flex-start; gap:16px;">
+                                <div style="filter: drop-shadow(0 4px 6px rgba(0,0,0,0.4)); flex-shrink: 0; min-height: 100px;">
+                                    <canvas id="skin-container-${name}" width="50" height="100"></canvas>
+                                </div>
+                                <div>
+                                    <div style="font-size: 1.5rem; font-weight: 700; color: var(--text); margin-bottom: 6px;">${App.escapeHtml(p.name)}</div>
+                                    <div style="margin-bottom: 6px;"><span class="badge ${({ 'applicant': 'badge-accent', 'suspect': 'badge-warning', 'staff-suspect': 'badge-error' })[p.type] || 'badge-info'}">${(p.type || 'unknown').toUpperCase()}</span></div>
+                                    <div style="color: var(--text-dim); font-size: 0.85rem;">Since: <span style="color: var(--text);">${p.trackingSince?.slice(0, 10) || 'unknown'}</span></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div style="width: 1px; background: rgba(255,255,255,0.05); margin: 0 8px;"></div>
+                        
+                        <div style="flex: 1; min-width: 180px; display:flex; flex-direction:column; justify-content:center;">
+                            <div style="color: var(--text-dim); font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 12px;">Current Status</div>
+                            <div style="font-size: 1.1rem; font-weight: 500; margin-bottom: 8px;">
+                                ${{ idle: '<span style="color:var(--text-dim)">💤 Idle</span>', active: '<span style="color:var(--success)">🟢 Active Tracking</span>', cooldown: '<span style="color:var(--warning)">🔶 Cooldown</span>' }[p.surveillanceState] || '⚪ Unknown'}
+                            </div>
+                            <div style="color: var(--text-dim); font-size: 0.85rem;">Last Checked: <span style="color: var(--text);">${p.lastChecked ? App.timeAgo(p.lastChecked) : 'never'}</span></div>
+                            <div style="color: var(--text-dim); font-size: 0.85rem;">Checks Run: <span style="color: var(--text);">${p.checkCount || 0}</span></div>
+                        </div>
+
+                        <div style="width: 1px; background: rgba(255,255,255,0.05); margin: 0 8px;"></div>
+
+                        <div style="flex: 1; min-width: 180px; display:flex; flex-direction:column; justify-content:center;">
+                            <div style="color: var(--text-dim); font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 12px;">Activity Stats</div>
+                            <div style="font-size: 1.1rem; font-weight: 500; margin-bottom: 8px; font-family: var(--mono)">
+                                ${p.latestPlaytime != null ? `${p.latestPlaytime} <span style="font-size:0.8rem;color:var(--text-dim)">Hours Played</span>` : '<span style="color:var(--text-dim);font-size:0.9rem">No playtime</span>'}
+                            </div>
+                            <div style="color: var(--text-dim); font-size: 0.85rem;">Activity Rate: <span style="color: var(--text);">${act?.activityRate ?? 0}%</span></div>
+                            <div style="color: var(--text-dim); font-size: 0.85rem;">Avg Session: <span style="color: var(--text);">${act?.avgDailyPlaytime ?? 0}h/day</span></div>
+                            ${p.playtimeBaseline != null && p.latestPlaytime > p.playtimeBaseline ? `<div style="color: var(--success); font-size: 0.85rem; margin-top:4px;">▴ +${Math.max(0, p.latestPlaytime - p.playtimeBaseline)}h since tracked</div>` : ''}
+                        </div>
+                    </div>
                 </div>
             `;
-
-            // ── Activity Summary ──
-            html += `<div class="card"><div class="card-title mb-16">📡 Activity</div>`;
-            if (act) {
-                html += `
-                    <p><strong>Latest playtime:</strong> ${act.latestPlaytime ?? '?'}h</p>
-                    <p><strong>Activity rate:</strong> ${act.activityRate ?? 0}% (${act.activeDays ?? 0} active / ${act.inactiveDays ?? 0} inactive)</p>
-                    <p><strong>Avg daily:</strong> ${act.avgDailyPlaytime ?? 0}h/day</p>
-                    <p><strong>Days tracked:</strong> ${act.daysTracked ?? 0}</p>
-                `;
-            } else {
-                html += '<p class="text-muted">No activity data yet.</p>';
-            }
-            html += '</div>';
 
             // ── Alt Accounts ──
             html += `<div class="card"><div class="card-title mb-16">👥 Alt Accounts (${alts.length})</div>`;
             if (alts.length > 0) {
+                html += `<div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap:12px">`;
                 html += alts.map(a => `
-                    <div class="flex-center gap-8 mb-8">
-                        <img src="https://mc-heads.net/avatar/${encodeURIComponent(a)}/20" width="20" height="20" style="border-radius:3px" onerror="this.style.display='none'">
-                        <strong>${App.escapeHtml(a)}</strong>
+                    <div style="display:flex; align-items:center; gap:12px; background:rgba(0,0,0,0.2); padding:10px 14px; border-radius:6px; border:1px solid rgba(255,255,255,0.05)">
+                        <img src="https://mc-heads.net/avatar/${encodeURIComponent(a)}/24" width="24" height="24" style="border-radius:4px" onerror="this.style.display='none'">
+                        <strong style="color:var(--text); font-size: 0.95rem;">${App.escapeHtml(a)}</strong>
                     </div>
                 `).join('');
+                html += `</div>`;
             } else {
-                html += '<p class="text-muted">No alts found yet.</p>';
+                html += '<p class="text-muted">No alt accounts identified.</p>';
             }
             html += '</div>';
 
@@ -290,27 +358,7 @@ const ProfilesPage = {
                 </div>`;
             }
 
-            // ── Punishment History ──
-            html += `<div class="card full-width"><div class="card-title mb-16">⚖️ Punishment History (${punishments.length})</div>`;
-            if (punishments.length > 0) {
-                html += `<div class="table-wrap"><table>
-                    <thead><tr><th>Type</th><th>Reason</th><th>By</th><th>Date</th><th>Duration</th></tr></thead>
-                    <tbody>
-                        ${punishments.slice().reverse().map(e => `
-                            <tr>
-                                <td><span class="badge badge-${e.type === 'ban' || e.type === 'tempban' ? 'error' : e.type === 'mute' || e.type === 'tempmute' ? 'warning' : 'info'}">${e.type}</span></td>
-                                <td>${App.escapeHtml(e.reason || '—')}</td>
-                                <td>${App.escapeHtml(e.by || '—')}</td>
-                                <td class="text-muted">${e.date || '—'}</td>
-                                <td>${e.duration || '—'}</td>
-                            </tr>
-                        `).join('')}
-                    </tbody>
-                </table></div>`;
-            } else {
-                html += '<p class="text-muted">No punishments recorded. Clean record so far.</p>';
-            }
-            html += '</div>';
+
 
             // ── Persona Analysis ──
             html += `<div class="card full-width"><div class="card-title mb-16">🧠 Persona Analysis</div>`;
@@ -389,10 +437,128 @@ const ProfilesPage = {
             }
             html += '</div>';
 
+            // ── Punishment History ──
+            html += `<div class="card full-width"><div class="card-title mb-16">⚖️ Punishment History (${punishments.length})</div>`;
+            if (punishments.length > 0) {
+                const reversed = punishments.slice().reverse();
+                html += `<div class="punishments-list" style="display:flex;flex-direction:column;gap:8px">`;
+
+                reversed.forEach((e, idx) => {
+                    const isHidden = idx >= 5 ? 'display: none;' : '';
+                    const cls = idx >= 5 ? 'punishment-extra' : '';
+
+                    html += `
+                        <div class="punishment-item ${cls}" style="${isHidden} background: rgba(255,255,255,0.03); border-radius: 8px; border: 1px solid rgba(255,255,255,0.05); overflow: hidden;">
+                            <div class="punishment-header" style="display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; cursor: pointer; user-select: none;" onclick="this.nextElementSibling.style.display = this.nextElementSibling.style.display === 'none' ? 'block' : 'none';">
+                                <div style="display: flex; align-items: center; gap: 12px;">
+                                    <span class="badge badge-${e.type === 'ban' || e.type === 'tempban' ? 'error' : e.type === 'mute' || e.type === 'tempmute' ? 'warning' : 'info'}">${e.type.toUpperCase()}</span>
+                                    <strong style="color: var(--text);">${App.escapeHtml(e.reason || '—')}</strong>
+                                </div>
+                                <div style="display: flex; align-items: center; gap: 16px; font-size: 13px; color: var(--text-dim);">
+                                    <span>${e.date || '—'}</span>
+                                    <span>▼</span>
+                                </div>
+                            </div>
+                            <div class="punishment-details" style="display: none; padding: 12px 16px; border-top: 1px solid rgba(255,255,255,0.05); background: rgba(0,0,0,0.2); font-size: 13px;">
+                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                                    <div>
+                                        <div style="color: var(--text-dim); margin-bottom: 4px;">Executed By</div>
+                                        <div style="color: var(--text);">${App.escapeHtml(e.by || '—')}</div>
+                                    </div>
+                                    <div>
+                                        <div style="color: var(--text-dim); margin-bottom: 4px;">Duration</div>
+                                        <div style="color: var(--text);">${App.escapeHtml(e.duration || '—')}</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                });
+
+                if (punishments.length > 5) {
+                    html += `
+                        <button class="btn btn-ghost" style="width:100%; margin-top:8px;" onclick="
+                            const extras = this.parentElement.querySelectorAll('.punishment-extra');
+                            const isShowing = extras[0].style.display !== 'none';
+                            extras.forEach(el => el.style.display = isShowing ? 'none' : 'block');
+                            this.innerHTML = isShowing ? '▼ Show More (${punishments.length - 5})' : '▲ Show Less';
+                        ">▼ Show More (${punishments.length - 5})</button>
+                    `;
+                }
+
+                html += `</div>`;
+            } else {
+                html += '<p class="text-muted">No punishments recorded. Clean record so far.</p>';
+            }
+            html += '</div>';
+
             html += '</div>'; // close dossier-grid
             content.innerHTML = html;
+
+            // Restore scroll position
+            if (isRefresh) {
+                requestAnimationFrame(() => {
+                    setTimeout(() => window.scrollTo(0, scrollPos), 50);
+                });
+            }
+
+            // Initialize Rotatable 3D Avatar
+            setTimeout(() => {
+                const canvas = document.getElementById(`skin-container-${name}`);
+                if (canvas && typeof skinview3d !== 'undefined') {
+                    const viewer = new skinview3d.SkinViewer({
+                        canvas: canvas,
+                        width: 50,
+                        height: 100,
+                        skin: `https://minotar.net/skin/${encodeURIComponent(p.name)}`
+                    });
+                    viewer.controls.enableRotate = false;
+                    viewer.controls.enableZoom = false;
+                    viewer.animation = new skinview3d.IdleAnimation();
+                    canvas.style.cursor = 'grab';
+
+                    // Default tilt (Left mapping from +0.5 mathematically)
+                    const snapBack = () => {
+                        canvas.style.cursor = 'grab';
+                        viewer.playerObject.rotation.y = 0.5;
+                        viewer.playerObject.rotation.x = 0;
+                    };
+                    snapBack();
+
+                    let isDragging = false;
+                    let previousX = 0;
+
+                    canvas.addEventListener('pointerdown', (e) => {
+                        isDragging = true;
+                        previousX = e.clientX;
+                        canvas.style.cursor = 'grabbing';
+                        canvas.setPointerCapture(e.pointerId);
+                    });
+
+                    canvas.addEventListener('pointermove', (e) => {
+                        if (!isDragging) return;
+                        const deltaX = e.clientX - previousX;
+                        viewer.playerObject.rotation.y += deltaX * 0.01;
+                        previousX = e.clientX;
+                    });
+
+                    canvas.addEventListener('pointerup', (e) => {
+                        if (isDragging) {
+                            isDragging = false;
+                            canvas.releasePointerCapture(e.pointerId);
+                            snapBack();
+                        }
+                    });
+                }
+            }, 50);
+
         } catch (err) {
             content.innerHTML = `<div class="empty-state"><p>Failed: ${App.escapeHtml(err.message)}</p></div>`;
+            if (isRefresh) {
+                requestAnimationFrame(() => {
+                    setTimeout(() => window.scrollTo(0, scrollPos), 50);
+                });
+            }
         }
     },
 

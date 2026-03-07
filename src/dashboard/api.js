@@ -244,6 +244,15 @@ function createApiRouter(deps) {
         }
     });
 
+    router.post('/profiles/:name/quick-check', async (req, res) => {
+        try {
+            const results = await profiler.quickCheck(req.params.name);
+            res.json(results);
+        } catch (err) {
+            res.status(500).json({ error: err.message });
+        }
+    });
+
     router.post('/profiles/:name/note', (req, res) => {
         const { text, category } = req.body;
         if (!text) return res.status(400).json({ error: 'Note text required' });
@@ -258,6 +267,10 @@ function createApiRouter(deps) {
         const deleted = profiler.store.deleteChatlogAnalysis(req.params.name, req.params.code);
         if (deleted) {
             if (audit) audit.log('profile_chatlog_deleted', { player: req.params.name, code: req.params.code, source: 'dashboard' });
+
+            // Recalculate persona asynchronously
+            profiler.chatlog._updateCumulativePersona(req.params.name).catch(console.error);
+
             res.json({ success: true });
         } else {
             res.status(404).json({ error: 'Chatlog not found' });

@@ -3,44 +3,44 @@
    A sharp, distinctive design with depth.
 ═══════════════════════════════════════════════ */
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
 
 /* ── Tokens ── */
 :root {
-    --bg-deep: #09090b;
-    --bg-surface: rgba(24, 24, 27, 0.65);
-    --bg-card: rgba(24, 24, 27, 0.45);
-    --bg-raised: rgba(39, 39, 42, 0.6);
-    --bg-hover: rgba(63, 63, 70, 0.4);
-    --border: rgba(255, 255, 255, 0.08);
-    --border-accent: rgba(167, 139, 250, 0.3);
+    --bg-deep: #0f172a;
+    --bg-surface: rgba(30, 41, 59, 0.65);
+    --bg-card: rgba(30, 41, 59, 0.45);
+    --bg-raised: rgba(51, 65, 85, 0.6);
+    --bg-hover: rgba(71, 85, 105, 0.4);
+    --border: rgba(255, 255, 255, 0.1);
+    --border-accent: rgba(59, 130, 246, 0.3);
 
-    --text: #f4f4f5;
-    --text-dim: #a1a1aa;
-    --text-faint: #52525b;
+    --text: #f8fafc;
+    --text-dim: #cbd5e1;
+    --text-faint: #94a3b8;
 
-    --accent: #a78bfa;
-    --accent-dim: #8b5cf6;
-    --accent-glow: rgba(167, 139, 250, 0.2);
+    --accent: #3b82f6;
+    --accent-dim: #2563eb;
+    --accent-glow: rgba(59, 130, 246, 0.2);
 
     --success: #10b981;
     --warning: #f59e0b;
     --error: #ef4444;
     --info: #3b82f6;
 
-    --gradient-accent: linear-gradient(135deg, #a78bfa 0%, #8b5cf6 50%, #6366f1 100%);
-    --gradient-card: linear-gradient(180deg, rgba(255, 255, 255, 0.03) 0%, transparent 100%);
+    --gradient-accent: linear-gradient(135deg, #3b82f6 0%, #2563eb 50%, #1d4ed8 100%);
+    --gradient-card: linear-gradient(180deg, rgba(255, 255, 255, 0.05) 0%, transparent 100%);
 
     --radius: 12px;
     --radius-sm: 8px;
     --radius-lg: 20px;
 
-    --font: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    --font: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
     --mono: 'JetBrains Mono', monospace;
 
-    --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.2);
-    --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.4);
-    --shadow-lg: 0 16px 48px rgba(0, 0, 0, 0.6);
+    --shadow-sm: 0 4px 12px rgba(0, 0, 0, 0.1);
+    --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.3);
+    --shadow-lg: 0 20px 48px rgba(0, 0, 0, 0.6);
     --shadow-glow: 0 0 20px var(--accent-glow);
 }
 
@@ -65,6 +65,7 @@ body {
     min-height: 100vh;
     -webkit-font-smoothing: antialiased;
     overflow-x: hidden;
+    line-height: 1.6;
 }
 
 ::selection {
@@ -288,8 +289,8 @@ body {
     margin-left: 240px;
     min-height: 100vh;
     background:
-        radial-gradient(ellipse at 20% 0%, rgba(99, 102, 241, 0.06) 0%, transparent 60%),
-        radial-gradient(ellipse at 80% 100%, rgba(167, 139, 250, 0.04) 0%, transparent 60%),
+        radial-gradient(ellipse at 20% 0%, rgba(59, 130, 246, 0.08) 0%, transparent 60%),
+        radial-gradient(ellipse at 80% 100%, rgba(249, 115, 22, 0.05) 0%, transparent 60%),
         var(--bg-deep);
 }
 
@@ -441,13 +442,15 @@ body {
     font-weight: 500;
     cursor: pointer;
     font-family: var(--font);
-    transition: all 0.15s ease;
+    transition: all 0.2s ease;
     white-space: nowrap;
 }
 
 .btn:hover {
     background: var(--bg-hover);
     border-color: var(--border-accent);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
 .btn:disabled {
@@ -578,7 +581,7 @@ select {
 
 /* ── Tables ── */
 .table-wrap {
-    overflow-x: auto;
+    overflow: visible;
 }
 
 table {
@@ -1286,7 +1289,7 @@ tr:hover td {
 }
 
 .graph-bar-fill.gradient {
-    background: linear-gradient(180deg, var(--accent) 0%, #EC4899 100%);
+    background: linear-gradient(180deg, var(--accent) 0%, rgba(59, 130, 246, 0.4) 100%);
 }
 
 /* ── Activity Sparkline (overview) ── */
@@ -1363,41 +1366,150 @@ tr:hover td {
         margin: 2px 4px;
     }
 }
- / *    % %  M o d a l s    % %  * / 
- . m o d a l - o v e r l a y   { 
-         p o s i t i o n :   f i x e d ; 
-         t o p :   0 ;   l e f t :   0 ;   w i d t h :   1 0 0 % ;   h e i g h t :   1 0 0 % ; 
-         b a c k g r o u n d :   r g b a ( 0 ,   0 ,   0 ,   0 . 7 ) ; 
-         b a c k d r o p - f i l t e r :   b l u r ( 8 p x ) ; 
-         - w e b k i t - b a c k d r o p - f i l t e r :   b l u r ( 8 p x ) ; 
-         z - i n d e x :   1 0 0 0 ; 
-         d i s p l a y :   f l e x ; 
-         a l i g n - i t e m s :   c e n t e r ; 
-         j u s t i f y - c o n t e n t :   c e n t e r ; 
-         o v e r f l o w - y :   a u t o ; 
-         p a d d i n g :   2 0 p x ; 
-         o v e r s c r o l l - b e h a v i o r :   c o n t a i n ; 
- } 
- 
- . m o d a l - c o n t e n t   { 
-         w i d t h :   1 0 0 % ; 
-         m a x - w i d t h :   8 0 0 p x ; 
-         m a r g i n :   a u t o ; 
-         p o s i t i o n :   r e l a t i v e ; 
-         a n i m a t i o n :   m o d a l P o p   0 . 3 s   c u b i c - b e z i e r ( 0 . 1 6 ,   1 ,   0 . 3 ,   1 ) ; 
-         b o x - s h a d o w :   v a r ( - - s h a d o w - l g ) ; 
- } 
- 
- . m o d a l - c l o s e   { 
-         p o s i t i o n :   a b s o l u t e ; 
-         t o p :   1 6 p x ; 
-         r i g h t :   1 6 p x ; 
-         z - i n d e x :   1 0 ; 
- } 
- 
- @ k e y f r a m e s   m o d a l P o p   { 
-         f r o m   {   o p a c i t y :   0 ;   t r a n s f o r m :   s c a l e ( 0 . 9 5 )   t r a n s l a t e Y ( 1 0 p x ) ;   } 
-         t o   {   o p a c i t y :   1 ;   t r a n s f o r m :   s c a l e ( 1 )   t r a n s l a t e Y ( 0 ) ;   } 
- } 
- 
- 
+
+/* -- Modals -- */
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(15, 23, 42, 0.75);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow-y: auto;
+    padding: 20px;
+    overscroll-behavior: contain;
+}
+
+.modal-content {
+    width: 100%;
+    max-width: 850px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    margin: auto;
+    position: relative;
+    animation: modalPop 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    box-shadow: var(--shadow-lg);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+}
+
+.modal-close {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    z-index: 10;
+    font-size: 16px;
+    padding: 6px 12px;
+    border-radius: var(--radius-sm);
+    background: var(--bg-hover);
+    color: var(--text-dim);
+    transition: all 0.2s ease;
+    cursor: pointer;
+}
+
+.modal-close:hover {
+    background: var(--error);
+    color: white;
+}
+
+@keyframes modalPop {
+    from {
+        opacity: 0;
+        transform: scale(0.95) translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+    }
+}
+
+/* -- Dropdown Menu (3-Dots) -- */
+.dropdown {
+    position: relative;
+    display: inline-block;
+}
+
+.dropdown-trigger {
+    background: transparent;
+    border: none;
+    color: var(--text-dim);
+    cursor: pointer;
+    padding: 6px;
+    border-radius: var(--radius-sm);
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.dropdown-trigger:hover {
+    background: var(--bg-hover);
+    color: var(--text);
+}
+
+.dropdown-content {
+    visibility: hidden;
+    opacity: 0;
+    position: absolute;
+    right: 0;
+    top: 100%;
+    margin-top: 4px;
+    background: var(--bg-card);
+    min-width: 160px;
+    box-shadow: var(--shadow-lg);
+    z-index: 100;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    transition: opacity 0.2s, transform 0.2s, visibility 0.2s;
+    transform: translateY(-5px);
+    padding: 4px;
+}
+
+.dropdown:focus-within .dropdown-content,
+.dropdown:hover .dropdown-content {
+    visibility: visible;
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.dropdown-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    width: 100%;
+    text-align: left;
+    background: transparent;
+    border: none;
+    border-radius: 4px;
+    color: var(--text);
+    font-size: 13px;
+    cursor: pointer;
+    font-family: var(--font);
+    transition: all 0.15s ease;
+}
+
+.dropdown-item:hover {
+    background: var(--bg-hover);
+    color: var(--accent);
+}
+
+.dropdown-item.danger:hover {
+    color: var(--error);
+    background: rgba(248, 113, 113, 0.1);
+}
+
+.dropdown-item.warning:hover {
+    color: var(--warning);
+    background: rgba(251, 191, 36, 0.1);
+}

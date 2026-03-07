@@ -43,6 +43,11 @@ class ActivityMonitor {
         });
 
         const findResult = parseFind(findLines);
+        if (findResult.error) {
+            console.log(`[ActivityMon] ${playerName}: ⚠️ Could not parse /find (maybe rate limit): ${findResult.rawText}`);
+            return { error: 'Parse failed or rate limited' };
+        }
+
         const profile = this.store.getProfile(playerName);
         if (!profile) return { error: 'No profile' };
 

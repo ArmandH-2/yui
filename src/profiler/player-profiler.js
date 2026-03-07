@@ -136,6 +136,9 @@ class PlayerProfiler {
                 priority: 'HIGH', timeout: 5000, maxLines: 30,
             });
             const { alts, playerInfo } = parseInfoSU(infoLines);
+            if (playerInfo?.name) {
+                this.store.updateProfile(name, { name: playerInfo.name });
+            }
             if (alts.length > 0) this.store.saveAlts(name, alts);
             if (playerInfo?.playtime) {
                 this.store.recordPlaytime(name, playerInfo.playtime);
@@ -174,6 +177,30 @@ class PlayerProfiler {
         }
 
         console.log(`[Profiler] ✅ Force-check complete for ${name}.`);
+        return results;
+    }
+
+    // ═══════════════════════════════════════
+    // Quick Check (only /find online state)
+    // ═══════════════════════════════════════
+
+    /**
+     * Quick check a single player: just /find
+     * @param {string} name
+     * @returns {Promise<object>} Results map
+     */
+    async quickCheck(name) {
+        if (!this.store.hasProfile(name)) {
+            return { error: 'Player not being watched.' };
+        }
+
+        console.log(`[Profiler] ⚡ Quick-checking ${name}...`);
+        const results = { name };
+        try {
+            results.find = await this.activity.checkPlayer(name);
+        } catch (err) { results.find = { error: err.message }; }
+
+        console.log(`[Profiler] ✅ Quick-check complete for ${name}.`);
         return results;
     }
 
@@ -219,6 +246,9 @@ class PlayerProfiler {
                     priority: 'NORMAL', timeout: 5000, maxLines: 30,
                 });
                 const { alts, playerInfo } = parseInfoSU(infoLines);
+                if (playerInfo?.name) {
+                    this.store.updateProfile(name, { name: playerInfo.name });
+                }
                 if (alts.length > 0) this.store.saveAlts(name, alts);
                 if (playerInfo?.playtime) {
                     this.store.recordPlaytime(name, playerInfo.playtime);

@@ -194,10 +194,10 @@ function parseStaffList(lines) {
 /**
  * Parse /find <player> output to extract which section they're on.
  * Expected: "Player is currently on: BedWars-1" or "Player is offline" or similar.
- * Normalizes weird server suffixes (like bw-dou-11 -> Bedwars, silent... -> Staff Lobby).
+ * Normalizes weird server suffixes (like bw-dou-11 -> Bw, silent... -> Silent).
  *
  * @param {string[]} lines - Raw output lines
- * @returns {{ online: boolean, section: string|null }}
+ * @returns {{ online: boolean, section: string|null, error?: boolean, rawText?: string }}
  */
 function parseFind(lines) {
     let text = lines.join('\n');
@@ -208,33 +208,36 @@ function parseFind(lines) {
         return { online: false, section: null };
     }
 
+    // Check for rate limit or unparseable generic messages
+    if (/wait|cooldown|slow down|error|invalid/i.test(text) || text.trim() === '') {
+        return { online: false, section: null, error: true, rawText: text.trim() };
+    }
+
     let section = 'unknown';
 
     // Strictly extract from the exact format the server uses to avoid noise like "Follow us on Instagram..."
     // Expected: "Ganster ▸ ItsB2_ is connected to:\n Silent-2_a422e0812b (proxy-002-backup)"
     const connectMatch = text.match(/is connected to:\s*\n?\s*([A-Za-z0-9_.-]+)/i);
     // Also try standard matching if the exact text wasn't found (fallback)
-    const fallbackMatch = text.match(/(?:on|playing|server)[:\s▸►]+([A-Za-z0-9_.-]+)/i);
+    const fallbackMatch = text.match(/(?:on|playing|server)[:\s▸►]+\s*([A-Za-z0-9_.-]+)/i);
 
     const rawSection = connectMatch ? connectMatch[1] : (fallbackMatch ? fallbackMatch[1] : null);
 
     if (rawSection) {
         let raw = rawSection.toLowerCase();
 
-        // Normalization rules for clean dashboard charts
-        if (raw.startsWith('bw') || raw.includes('bedwars')) section = 'Bedwars';
-        else if (raw.startsWith('sw') || raw.includes('skywars')) section = 'Skywars';
-        else if (raw.includes('survival')) section = 'Survival';
-        else if (raw.includes('oneblock')) section = 'OneBlock';
-        else if (raw.includes('practice')) section = 'Practice';
-        else if (raw.includes('silent')) section = 'Staff/Immortal Lobby';
-        else if (raw.includes('lobby')) section = 'Lobby';
-        else {
+        if (raw.includes('silent')) {
+            section = 'Silent';
+        } else {
             // "almost all the server names contain "-" and the part before "-" is sufficient enough"
             section = rawSection.split('-')[0];
             // Capitalize first letter properly
             if (section) section = section.charAt(0).toUpperCase() + section.slice(1).toLowerCase();
         }
+    } else {
+        // If we didn't find "offline", nor "is connected to", nor a rate limit message,
+        // it's likely an unrecognized output format. Return error to avoid logging "unknown" online state.
+        return { online: false, section: null, error: true, rawText: text.trim() };
     }
 
     return { online: true, section };
@@ -272,7 +275,7 @@ function parseChatlogCode(lines) {
  * Look for patterns like:
  *   "Alts: Player1, Player2, Player3"
  *   "Connected accounts: Player1, Player2"
- *   Or a list of names after an "alts" header
+ *   "» Sub-Accounts (2):" followed by lines
  *
  * @param {string[]} lines - Raw output lines from /info <player> su
  * @returns {{ alts: string[], playerInfo: object }} Alts list + normal info
@@ -285,8 +288,7 @@ function parseInfoSU(lines) {
     const playerInfo = parsePlayerInfo(lines) || {};
     const alts = [];
 
-    // Try patterns for alt accounts
-    // "Alts ▸ Name1, Name2" or "Alts: Name1, Name2" or "Connected: Name1, Name2"
+    // Try patterns for alt accounts (comma separated on same line)
     const altsMatch = text.match(/(?:alts?|connected\s*accounts?|linked)\s*[▸►:\s]+\s*(.+)/i);
     if (altsMatch) {
         const altsRaw = altsMatch[1].trim();
@@ -295,13 +297,28 @@ function parseInfoSU(lines) {
         alts.push(...names);
     }
 
-    // Also try line-by-line for numbered lists: "1. PlayerName" or "- PlayerName"
-    for (const line of lines) {
-        const numberedMatch = line.match(/^\s*(?:\d+[.)]\s*|[-•]\s+)([A-Za-z0-9_]{3,16})\s*$/);
-        if (numberedMatch && !alts.includes(numberedMatch[1])) {
-            // Only add if we're past an "alts" header
-            if (/alts?|connected|linked/i.test(text.split(line)[0])) {
-                alts.push(numberedMatch[1]);
+    // Line-by-line parsing for lists
+    let inSubAccounts = false;
+    const flatLines = lines.flatMap(l => l.split('\n'));
+    for (let line of flatLines) {
+        line = line.replace(/§[0-9a-fk-or]/gi, '').trim();
+
+        if (/sub-accounts|alts|connected accounts/i.test(line)) {
+            inSubAccounts = true;
+            // Also try to see if they are on the same line (e.g. "Sub-Accounts (2): Player1, Player2")
+            const inlineNames = line.split(/:\s*/)[1];
+            if (inlineNames && inlineNames.length > 2) {
+                const names = inlineNames.split(/[,; ]+/).map(n => n.trim()).filter(n => n.length >= 3 && n.length <= 16 && /^[A-Za-z0-9_]+$/.test(n));
+                alts.push(...names);
+            }
+            continue;
+        }
+
+        if (inSubAccounts) {
+            // Match "» PlayerName" or "1. PlayerName" or "- PlayerName"
+            const match = line.match(/^[\s»▸►•-]*(\d+\.\s*)?([A-Za-z0-9_]{3,16})\s*$/);
+            if (match && !alts.includes(match[2])) {
+                alts.push(match[2]);
             }
         }
     }
@@ -313,71 +330,92 @@ function parseInfoSU(lines) {
  * Parse /punishhistory <player> output.
  * Expected formats vary, common patterns:
  *   "Ban ▸ Reason: Hacking ┃ By: StaffName ┃ Date: 01.03.2026"
- *   "Mute ▸ Chat abuse ┃ CloudAdmin ┃ 02.03.2026 - 15:30:00 ┃ 1d"
- *   Or table-like entries with type, reason, staff, and date
+ *   Two-line format:
+ *   "» BAN, 26.05.2022 - 16:38:41 ➟ expires never"
+ *   "➥ CloudAdmin, Unfair Advantage"
  *
  * @param {string[]} lines - Raw output lines
  * @returns {Array<{type: string, reason: string, by: string, date: string, duration: string|null, raw: string}>}
  */
 function parsePunishHistory(lines) {
     const entries = [];
-    let text = lines.join('\n');
-    text = text.replace(/§[0-9a-fk-or]/gi, '');
+    const flatLines = lines.flatMap(l => l.split('\n'));
 
-    // Strategy 1: Find formatted lines like "Ban ▸ Hacker ┃ ItsB2_ ┃ 01.03.2026"
-    // Or: "Type ▸ Reason ┃ StaffName ┃ Date [┃ Duration]"
-    const structuredPattern = /(ban|mute|warn|kick|tempban|tempmute)\s*[▸►:]\s*(.+)/gi;
-    let match;
+    for (let i = 0; i < flatLines.length; i++) {
+        let line = flatLines[i].replace(/§[0-9a-fk-or]/gi, '').trim();
+        if (!line) continue;
 
-    while ((match = structuredPattern.exec(text)) !== null) {
-        const type = match[1].toLowerCase();
-        const rest = match[2];
+        // Try the two-line format:
+        // » BAN, 26.05.2022 - 16:38:41 ➟ expires never
+        // ➥ CloudAdmin, Unfair Advantage
+        const twoLineMatch = line.match(/^»\s*(BAN|UNBAN|MUTE|UNMUTE|WARN|KICK|TEMPBAN|TEMPMUTE)[,\s]+([\d.-]+\s*[-–]\s*[\d:]+)\s*[➟➔>]\s*(.+)/i);
+        if (twoLineMatch && i + 1 < flatLines.length) {
+            const type = twoLineMatch[1].toLowerCase();
+            const date = twoLineMatch[2].trim();
+            const duration = twoLineMatch[3].trim();
 
-        // Try to split by separator
-        const parts = rest.split(/[┃|│]+/).map(p => p.trim());
+            const nextLine = flatLines[i + 1].replace(/§[0-9a-fk-or]/gi, '').trim();
+            const reasonMatch = nextLine.match(/^➥\s*([^,]+),\s*(.+)/i);
 
-        let reason = '', by = '', date = '', duration = null;
-
-        if (parts.length >= 3) {
-            // Type ▸ Reason ┃ Staff ┃ Date [┃ Duration]
-            reason = parts[0].replace(/^reason[:\s]*/i, '').trim();
-            by = parts[1].replace(/^(?:by|staff)[:\s]*/i, '').trim();
-            date = parts[2].replace(/^(?:date|when)[:\s]*/i, '').trim();
-            if (parts[3]) duration = parts[3].replace(/^(?:duration|time)[:\s]*/i, '').trim();
-        } else if (parts.length === 2) {
-            reason = parts[0];
-            by = parts[1];
-        } else {
-            reason = rest.trim();
+            if (reasonMatch) {
+                entries.push({
+                    type,
+                    reason: reasonMatch[2].trim() || 'Unknown',
+                    by: reasonMatch[1].trim() || 'Unknown',
+                    date,
+                    duration,
+                    raw: line + '\n' + nextLine,
+                });
+                i++; // Skip the next line as it's part of this entry
+                continue;
+            }
         }
 
-        entries.push({
-            type,
-            reason: reason || 'Unknown',
-            by: by || 'Unknown',
-            date: date || null,
-            duration,
-            raw: match[0].trim(),
-        });
-    }
+        // Try single-line format: Type ▸ Reason ┃ StaffName ┃ Date [┃ Duration]
+        const singlePattern = /^(ban|mute|warn|kick|tempban|tempmute)\s*[▸►:]\s*(.+)/i;
+        const singleMatch = line.match(singlePattern);
 
-    // If no structured entries found, try line-by-line heuristic
-    if (entries.length === 0) {
-        for (const line of lines) {
-            const trimmed = line.trim();
-            if (!trimmed || trimmed.length < 5) continue;
+        if (singleMatch) {
+            const type = singleMatch[1].toLowerCase();
+            const rest = singleMatch[2];
+            const parts = rest.split(/[┃|│]+/).map(p => p.trim());
 
-            const typeMatch = trimmed.match(/^(ban|mute|warn|kick|tempban|tempmute)\b/i);
-            if (typeMatch) {
-                entries.push({
-                    type: typeMatch[1].toLowerCase(),
-                    reason: trimmed.substring(typeMatch[0].length).trim(),
-                    by: 'Unknown',
-                    date: null,
-                    duration: null,
-                    raw: trimmed,
-                });
+            let reason = '', by = '', date = '', duration = null;
+
+            if (parts.length >= 3) {
+                reason = parts[0].replace(/^reason[:\s]*/i, '').trim();
+                by = parts[1].replace(/^(?:by|staff)[:\s]*/i, '').trim();
+                date = parts[2].replace(/^(?:date|when)[:\s]*/i, '').trim();
+                if (parts[3]) duration = parts[3].replace(/^(?:duration|time)[:\s]*/i, '').trim();
+            } else if (parts.length === 2) {
+                reason = parts[0];
+                by = parts[1];
+            } else {
+                reason = rest.trim();
             }
+
+            entries.push({
+                type,
+                reason: reason || 'Unknown',
+                by: by || 'Unknown',
+                date: date || null,
+                duration,
+                raw: line,
+            });
+            continue;
+        }
+
+        // Heuristic fallback
+        const heuristicMatch = line.match(/^(ban|mute|warn|kick|tempban|tempmute)\b/i);
+        if (heuristicMatch && line.length > 5) {
+            entries.push({
+                type: heuristicMatch[1].toLowerCase(),
+                reason: line.substring(heuristicMatch[0].length).trim(),
+                by: 'Unknown',
+                date: null,
+                duration: null,
+                raw: line,
+            });
         }
     }
 

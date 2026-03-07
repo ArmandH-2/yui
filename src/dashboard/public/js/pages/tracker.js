@@ -159,11 +159,16 @@ const TrackerPage = {
                                         </div>
                                     </td>
                                     <td style="padding: 12px; text-align:right;">
-                                        <div class="flex-center gap-8" style="justify-content: flex-end;">
-                                            <button class="btn btn-primary btn-sm" onclick="TrackerPage.viewStats('${App.escapeHtml(name)}')" title="View Details & Profile">📝 Details</button>
-                                            <button class="btn btn-accent btn-sm" onclick="TrackerPage.updateSingle('${App.escapeHtml(name)}', this)" title="Refresh Stats">🔄</button>
-                                            <button class="btn btn-warning btn-sm" onclick="TrackerPage.excludeStaff('${App.escapeHtml(name)}')" title="Ignore this member">🚫</button>
-                                            <button class="btn btn-danger btn-sm" onclick="TrackerPage.removeStaff('${App.escapeHtml(name)}')" title="Remove member completely">✕</button>
+                                        <div class="dropdown" tabindex="0">
+                                            <button class="dropdown-trigger" title="Options">
+                                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1.5"></circle><circle cx="19" cy="12" r="1.5"></circle><circle cx="5" cy="12" r="1.5"></circle></svg>
+                                            </button>
+                                            <div class="dropdown-content">
+                                                <button class="dropdown-item" onclick="TrackerPage.viewStats('${App.escapeHtml(name)}')">📝 View Details</button>
+                                                <button class="dropdown-item" onclick="TrackerPage.updateSingle('${App.escapeHtml(name)}', this)">🔄 Refresh Stats</button>
+                                                <button class="dropdown-item warning" onclick="TrackerPage.excludeStaff('${App.escapeHtml(name)}')">🚫 Ignore Member</button>
+                                                <button class="dropdown-item danger" onclick="TrackerPage.removeStaff('${App.escapeHtml(name)}')">✕ Remove Track</button>
+                                            </div>
                                         </div>
                                     </td>
                                 </tr>
@@ -578,11 +583,7 @@ const TrackerPage = {
         const modal = document.getElementById('member-profile-modal');
         const body = document.getElementById('member-profile-body');
 
-        // Fetch roster to know rank dates
-        const roster = await API.trackerRoster();
-        const pDate = roster.rankDates?.[name];
-        const promotedStr = pDate ? `Since ${pDate}` : 'Unknown Date';
-
+        // Show loading state immediately to prevent "no change" bugs on click
         modal.style.display = 'flex';
         body.innerHTML = `
             <div style="text-align:center; padding: 40px 20px;">
@@ -591,6 +592,11 @@ const TrackerPage = {
                 <p class="text-muted">Loading Profile Data...</p>
             </div>
         `;
+
+        // Fetch roster to know rank dates
+        const roster = await API.trackerRoster();
+        const pDate = roster.rankDates?.[name];
+        const promotedStr = pDate ? `Since ${pDate}` : 'Unknown Date';
 
         try {
             const stats = await API.trackerStats(name).catch(() => null);
@@ -605,12 +611,17 @@ const TrackerPage = {
             if (!dbHistory || dbHistory.length < 2) {
                 graphHtml = '<p class="text-muted text-sm" style="text-align:center;">Not enough data for graphs. Run at least 2 checks for this member.</p>';
             } else {
+                const reportG = TrackerPage._renderLineGraph('📝 Reports', dbHistory.map(d => ({ label: d.date.slice(5), value: d.reports_total || 0 })), 'var(--info)');
+                const warnG = TrackerPage._renderLineGraph('⚠️ Warns', dbHistory.map(d => ({ label: d.date.slice(5), value: d.warns_total || 0 })), 'var(--warning)');
+                const suppG = TrackerPage._renderLineGraph('📩 Support', dbHistory.map(d => ({ label: d.date.slice(5), value: d.support_total || 0 })), 'var(--success)');
+                const playG = TrackerPage._renderLineGraph('⏱️ Playtime', dbHistory.map(d => ({ label: d.date.slice(5), value: d.playtime_total || 0 })), 'var(--accent)');
+
                 graphHtml = `
                     <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 16px;">
-                        ${TrackerPage._renderLineGraph('📝 Reports', dbHistory.map(d => ({ label: d.date.slice(5), value: d.reports_total || 0 })), 'var(--info)')}
-                        ${TrackerPage._renderLineGraph('⚠️ Warns', dbHistory.map(d => ({ label: d.date.slice(5), value: d.warns_total || 0 })), 'var(--warning)')}
-                        ${TrackerPage._renderLineGraph('📩 Support', dbHistory.map(d => ({ label: d.date.slice(5), value: d.support_total || 0 })), 'var(--success)')}
-                        ${TrackerPage._renderLineGraph('⏱️ Playtime', dbHistory.map(d => ({ label: d.date.slice(5), value: d.playtime_total || 0 })), 'var(--accent)')}
+                        <div style="cursor:pointer; transition: transform 0.2s;" onclick="TrackerPage.expandGraph(this)" title="Click to expand">${reportG}</div>
+                        <div style="cursor:pointer; transition: transform 0.2s;" onclick="TrackerPage.expandGraph(this)" title="Click to expand">${warnG}</div>
+                        <div style="cursor:pointer; transition: transform 0.2s;" onclick="TrackerPage.expandGraph(this)" title="Click to expand">${suppG}</div>
+                        <div style="cursor:pointer; transition: transform 0.2s;" onclick="TrackerPage.expandGraph(this)" title="Click to expand">${playG}</div>
                     </div>
                 `;
             }
@@ -620,12 +631,12 @@ const TrackerPage = {
                     <div class="flex-center gap-16">
                         <img src="https://mc-heads.net/avatar/${encodeURIComponent(name)}/48" width="48" height="48" style="border-radius:6px;" onerror="this.style.display='none'">
                         <div>
-                            <h2 style="margin:0;">${App.escapeHtml(name)}</h2>
+                            <h2 style="margin:0; display:flex; align-items:center; gap:12px;">
+                                ${App.escapeHtml(name)}
+                                <button class="btn btn-accent btn-sm" style="font-size:11px; padding: 4px 8px;" onclick="TrackerPage.updateSingle('${App.escapeHtml(name)}', this)">🔄 Live Update</button>
+                            </h2>
                             <p class="text-muted" style="margin: 4px 0 0 0;">${App.escapeHtml(stats.rank)} &middot; ${promotedStr}</p>
                         </div>
-                    </div>
-                    <div class="flex-center gap-8">
-                        <button class="btn btn-accent btn-sm" onclick="TrackerPage.updateSingle('${App.escapeHtml(name)}', this)">🔄 Live Update Activity</button>
                     </div>
                 </div>
 
@@ -669,4 +680,44 @@ const TrackerPage = {
             body.innerHTML = `<div class="empty-state"><p>Failed to load profile: ${App.escapeHtml(err.message)}</p></div>`;
         }
     },
+
+    expandGraph(element) {
+        const svgHtml = element.innerHTML;
+        // create a full screen overlay dynamically
+        const overlay = document.createElement('div');
+        overlay.style.position = 'fixed';
+        overlay.style.top = '0';
+        overlay.style.left = '0';
+        overlay.style.width = '100vw';
+        overlay.style.height = '100vh';
+        overlay.style.backgroundColor = 'rgba(0,0,0,0.85)';
+        overlay.style.backdropFilter = 'blur(10px)';
+        overlay.style.zIndex = '9999';
+        overlay.style.display = 'flex';
+        overlay.style.alignItems = 'center';
+        overlay.style.justifyContent = 'center';
+        overlay.style.padding = '40px';
+        overlay.style.cursor = 'zoom-out';
+
+        overlay.onclick = () => document.body.removeChild(overlay);
+
+        const container = document.createElement('div');
+        container.style.width = '100%';
+        container.style.maxWidth = '1000px';
+        container.style.background = 'var(--bg-card)';
+        container.style.border = '1px solid var(--border)';
+        container.style.borderRadius = 'var(--radius)';
+        container.style.padding = '30px';
+        container.style.boxShadow = 'var(--shadow-lg)';
+        container.style.cursor = 'default';
+        container.onclick = (e) => e.stopPropagation();
+
+        // clone inner HTML but make sure the SVG scales bigger and title text is larger
+        let expandedHtml = svgHtml.replace(/<svg /, '<svg style="width:100%;height:auto;min-height:300px;font-family:var(--mono)" ');
+        expandedHtml = expandedHtml.replace(/<h3 class="card-title mb-8">/, '<h3 class="card-title mb-16" style="font-size: 20px;">');
+
+        container.innerHTML = expandedHtml;
+        overlay.appendChild(container);
+        document.body.appendChild(overlay);
+    }
 };
