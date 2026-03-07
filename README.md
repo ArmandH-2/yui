@@ -34,7 +34,7 @@ She uses **OpenAI** for natural language understanding and a **RAG memory system
 ### Installation
 
 ```bash
-git clone <your-repo-url>
+git clone https://github.com/ArmandH-2/yui.git
 cd Yui
 npm install
 ```
